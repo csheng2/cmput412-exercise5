@@ -1,6 +1,6 @@
 # parameters
-ARG REPO_NAME="Lab 5"
-ARG DESCRIPTION="This is the repo for Lab5"
+ARG REPO_NAME="April_tag_detection"
+ARG DESCRIPTION="This is a repo to detect apriltags"
 ARG MAINTAINER="Sharyat Singh Bhanwala (sharyatsb@gmail.com)"
 # pick an icon from: https://fontawesome.com/v4.7.0/icons/
 ARG ICON="cube"

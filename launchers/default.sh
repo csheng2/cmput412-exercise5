@@ -13,8 +13,7 @@ dt-launchfile-init
 # NOTE: Use `dt-exec COMMAND` to run the main process (blocking process)
 
 # launching app
-dt-exec echo "This is an empty launch script. Update it to launch your application."
-
+dt-exec roslaunch image_converter image_converter_node.launch veh:=csc22919
 
 # ----------------------------------------------------------------------------
 # YOUR CODE ABOVE THIS LINE

@@ -49,7 +49,8 @@ class ImageConverterNode(DTROS):
             return
 
         # turn image message into grayscale image
-        img = self.jpeg.decode(msg.data, pixel_format=TJPF_GRAY)
+        # img = self.jpeg.decode(msg.data, pixel_format=TJPF_GRAY)
+        img = self.jpeg.decode(msg.data)
         # run input image through the rectification map
         img = cv2.remap(img, self._mapx, self._mapy, cv2.INTER_NEAREST)
 

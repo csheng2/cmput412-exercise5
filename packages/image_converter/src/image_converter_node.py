@@ -24,7 +24,7 @@ class ImageConverterNode(DTROS):
 
         # self.host = "csc22919"
         self.image_sub = rospy.Subscriber(f"/{self.host}/camera_node/image/compressed", CompressedImage, self.image_callback)
-        self.image_pub = rospy.Publisher("/output/detected_image/Image", Image, queue_size=1)
+        self.image_pub = rospy.Publisher("/output/detected_image/compressed", CompressedImage, queue_size=1)
 
         # Initialize static parameters from camera info message
         camera_info_msg = rospy.wait_for_message(f'/{self.host}/camera_node/camera_info', CameraInfo)
@@ -51,11 +51,12 @@ class ImageConverterNode(DTROS):
         # turn image message into grayscale image
         # img = self.jpeg.decode(msg.data, pixel_format=TJPF_GRAY)
         img = self.jpeg.decode(msg.data)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        # img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         # run input image through the rectification map
         img = cv2.remap(img, self._mapx, self._mapy, cv2.INTER_NEAREST)
-
-        self.image_pub.publish(self.br.cv2_to_imgmsg(img, encoding="rgb8"))
+        
+        imgMsg = CompressedImage(format="jpeg", data=self.jpeg.encode(img))
+        self.image_pub.publish(imgMsg)
 
 if __name__ == '__main__':
     node = ImageConverterNode("image_converter_node")

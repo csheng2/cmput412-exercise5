@@ -55,7 +55,7 @@ class ImageConverterNode(DTROS):
         # run input image through the rectification map
         img = cv2.remap(img, self._mapx, self._mapy, cv2.INTER_NEAREST)
 
-        self.image_pub.publish(self.br.cv2_to_imgmsg(img))
+        self.image_pub.publish(self.br.cv2_to_imgmsg(img, encoding="rgb8"))
 
 if __name__ == '__main__':
     node = ImageConverterNode("image_converter_node")

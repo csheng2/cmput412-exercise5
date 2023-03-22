@@ -10,6 +10,9 @@ from turbojpeg import TurboJPEG, TJPF_GRAY
 from image_geometry import PinholeCameraModel
 import os
 
+BLUE_RANGE = [(90, 50, 100), (110, 255, 200)]
+BLACK_RANGE = [(0, 0, 0), (179, 75, 80)]
+
 class ImageConverterNode(DTROS):
 
     def __init__(self, node_name):
@@ -24,7 +27,7 @@ class ImageConverterNode(DTROS):
 
         # self.host = "csc22919"
         self.image_sub = rospy.Subscriber(f"/{self.host}/camera_node/image/compressed", CompressedImage, self.image_callback)
-        self.image_pub = rospy.Publisher("/output/detected_image/compressed", CompressedImage, queue_size=1)
+        self.image_pub = rospy.Publisher("/output/detected_image", Image, queue_size=1)
 
         # Initialize static parameters from camera info message
         camera_info_msg = rospy.wait_for_message(f'/{self.host}/camera_node/camera_info', CameraInfo)
@@ -54,9 +57,59 @@ class ImageConverterNode(DTROS):
         # img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         # run input image through the rectification map
         img = cv2.remap(img, self._mapx, self._mapy, cv2.INTER_NEAREST)
+
+        frame = cv2.GaussianBlur(img, (5, 5), 0)
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+        # Mask for numbers
+        mask = cv2.inRange(hsv, BLUE_RANGE[0], BLUE_RANGE[1])
+        contours, _ = cv2.findContours(
+        mask,
+        cv2.RETR_EXTERNAL,
+        cv2.CHAIN_APPROX_NONE
+        )
+
+        max_area = 5000
+        max_idx = -1
+        for i in range(len(contours)):
+            area = cv2.contourArea(contours[i])
+            if area > max_area:
+                max_idx = i
+                max_area = area
+
+        if max_idx == -1:
+            return
         
-        imgMsg = CompressedImage(format="jpeg", data=self.jpeg.encode(img))
-        self.image_pub.publish(imgMsg)
+        # print(max_area)
+        
+        [X, Y, W, H] = cv2.boundingRect(contours[max_idx])
+        cropped_image = frame[Y:Y+H, X:X+W]
+        second_mask = cv2.inRange(cropped_image, BLACK_RANGE[0], BLACK_RANGE[1])
+
+        contours, _ = cv2.findContours(
+            second_mask,
+            cv2.RETR_EXTERNAL,
+            cv2.CHAIN_APPROX_NONE
+        )
+
+        max_area = 0
+        max_idx = 0
+        for i in range(len(contours)):
+            area = cv2.contourArea(contours[i])
+            if area > max_area:
+                max_idx = i
+                max_area = area
+
+        mask = np.zeros(cropped_image.shape, np.uint8)
+        cv2.drawContours(mask, contours, max_idx, (255, 255, 255), thickness=cv2.FILLED)
+        final_mask = cv2.bitwise_and(mask, mask, mask=second_mask)
+        # print(second_mask.shape, img.shape)
+
+        # print(self.jpeg.encode(second_mask))
+        # print(self.br.cv2_to_imgmsg(second_mask))
+
+        # imgMsg = CompressedImage(format="jpeg", data=self.jpeg.encode(second_mask))
+        self.image_pub.publish(self.br.cv2_to_imgmsg(final_mask, "bgr8"))
 
 if __name__ == '__main__':
     node = ImageConverterNode("image_converter_node")

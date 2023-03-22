@@ -14,7 +14,7 @@ dt-launchfile-init
 
 # launching app
 dt-exec roslaunch lane_follow lane_follow_node.launch veh:=$VEHICLE_NAME
-dt-exec roslaunch image_converter image_converter_node.launch veh:=$VEHICLE_NAME
+# dt-exec roslaunch image_converter image_converter_node.launch veh:=$VEHICLE_NAME
 
 # ----------------------------------------------------------------------------
 # YOUR CODE ABOVE THIS LINE

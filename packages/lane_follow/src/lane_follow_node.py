@@ -3,22 +3,24 @@
 import rospy, random
 
 from duckietown.dtros import DTROS, NodeType
-from sensor_msgs.msg import CameraInfo, CompressedImage, Range
+from sensor_msgs.msg import CameraInfo, CompressedImage, Image
 from dt_apriltags import Detector
 from turbojpeg import TurboJPEG, TJPF_GRAY
 from image_geometry import PinholeCameraModel
 import cv2
-from std_msgs.msg import Header, ColorRGBA, Float32, String
-from duckietown_msgs.msg import Twist2DStamped, LEDPattern, Pose2DStamped
-from duckietown_msgs.srv import SetFSMState, SetFSMStateResponse
+import numpy as np
+from cv_bridge import CvBridge
+from std_msgs.msg import Header
+from duckietown_msgs.msg import Twist2DStamped, LEDPattern
 
-
+# Color masks
 STOP_MASK = [(0, 75, 150), (5, 150, 255)]
 ROAD_MASK = [(20, 60, 0), (50, 255, 255)]
+BLUE_RANGE = [(90, 50, 100), (110, 255, 200)]
+BLACK_RANGE = [(0, 0, 0), (179, 75, 80)]
+
 DEBUG = False
 ENGLISH = False
-SERVICE_NAME = 'lane_following_service'
-SKIP_LED = True
 
 class LaneFollowNode(DTROS):
   def __init__(self, node_name):
@@ -47,8 +49,11 @@ class LaneFollowNode(DTROS):
       queue_size=1
     )
     self.color_publisher = rospy.Publisher(f"/{self.veh}/led_emitter_node/led_pattern", LEDPattern, queue_size = 1)
+    self.image_pub = rospy.Publisher("/output/detected_image", Image, queue_size=1)
 
+    # Image processing helpers
     self.jpeg = TurboJPEG()
+    self.br = CvBridge()
 
     # Lane-following PID Variables
     self.proportional = None
@@ -151,6 +156,8 @@ class LaneFollowNode(DTROS):
     self.loginfo("Initialized")
 
   def callback(self, msg):
+    if not msg:
+      return
     self.last_message = msg
 
     img = self.jpeg.decode(msg.data)
@@ -254,16 +261,73 @@ class LaneFollowNode(DTROS):
     # detect tags
     tags = self.at_detector.detect(img, True, self._camera_parameters, self.tag_size)
 
+    if len(tags) == 0:
+      return
+
     # Only save the april tag if it's within a close distance
     min_tag_distance = 2
+    min_tag_idx = 0
     for tag in tags:
       distance = tag.pose_t[2][0]
       if distance > min_tag_distance:
         continue
+    
+    # save tag id if we're about to go to an intersection
+    if str(tags[min_tag_idx]) in self.apriltag_actions:
+      self.last_detected_apriltag = str(tag.tag_id)
+    
+    # TODO: if tag not within a range and offset, return (skip number detection)
 
-      # save tag id if we're about to go to an intersection
-      if str(tag.tag_id) in self.apriltag_actions:
-        self.last_detected_apriltag = str(tag.tag_id)
+    # color version of image message
+    img = self.jpeg.decode(msg.data)
+    # run input image through the rectification map
+    img = cv2.remap(img, self._mapx, self._mapy, cv2.INTER_NEAREST)
+
+    frame = cv2.GaussianBlur(img, (5, 5), 0)
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+    # Mask for numbers
+    mask = cv2.inRange(hsv, BLUE_RANGE[0], BLUE_RANGE[1])
+    contours, _ = cv2.findContours(
+      mask,
+      cv2.RETR_EXTERNAL,
+      cv2.CHAIN_APPROX_NONE
+    )
+
+    max_area = 2000
+    max_idx = -1
+    for i in range(len(contours)):
+      area = cv2.contourArea(contours[i])
+      if area > max_area:
+        max_idx = i
+        max_area = area
+
+    if max_idx == -1:
+      return
+    
+    [X, Y, W, H] = cv2.boundingRect(contours[max_idx])
+    cropped_image = frame[Y:Y+H, X:X+W]
+    second_mask = cv2.inRange(cropped_image, BLACK_RANGE[0], BLACK_RANGE[1])
+
+    contours, _ = cv2.findContours(
+      second_mask,
+      cv2.RETR_EXTERNAL,
+      cv2.CHAIN_APPROX_NONE
+    )
+
+    max_area = 0
+    max_idx = 0
+    for i in range(len(contours)):
+      area = cv2.contourArea(contours[i])
+      if area > max_area:
+        max_idx = i
+        max_area = area
+
+    mask = np.zeros(cropped_image.shape, np.uint8)
+    cv2.drawContours(mask, contours, max_idx, (255, 255, 255), thickness=cv2.FILLED)
+    final_mask = cv2.bitwise_and(mask, mask, mask=second_mask)
+
+    self.image_pub.publish(self.br.cv2_to_imgmsg(final_mask, "bgr8"))
 
   def drive(self):
     if self.stop:
@@ -324,7 +388,6 @@ class LaneFollowNode(DTROS):
         else:
           self.stop = False
           self.last_stop_time = rospy.get_time()
-          # self.change_color(None)
     else:
       # Determine Velocity - based on if we're following a Duckiebot or not
       self.twist.v = self.velocity
@@ -349,51 +412,6 @@ class LaneFollowNode(DTROS):
           # self.loginfo(self.proportional, P, D, self.twist.omega, self.twist.v)
           print(self.proportional, P, D, self.twist.omega, self.twist.v)
       self.vel_pub.publish(self.twist)
-
-  def change_color(self, turn_signal):
-    '''
-    Code for this function was inspired by 
-    "duckietown/dt-core", file "led_emitter_node.py"
-    Link: https://github.com/duckietown/dt-core/blob/daffy/packages/led_emitter/src/led_emitter_node.py
-    Author: GitHub user liampaull
-    '''
-    if SKIP_LED:
-      if turn_signal: print("turning", turn_signal)
-      return
-
-    self.pattern.header.stamp = rospy.Time.now()
-    rgba_yellow = ColorRGBA()
-    rgba_none = ColorRGBA()
-
-    rgba_yellow.r = 1.0
-    rgba_yellow.g = 1.0
-    rgba_yellow.b = 0.0
-    rgba_yellow.a = 0.0
-
-    rgba_none.r = 0.0
-    rgba_none.g = 0.0
-    rgba_none.b = 0.0
-    rgba_none.a = 0.0
-
-    # default: turn off
-    self.pattern.rgb_vals = [rgba_none] * 5
-
-    if turn_signal == "right":
-      self.pattern.rgb_vals = [rgba_none, rgba_none, rgba_yellow, rgba_yellow, rgba_none]
-    elif  turn_signal == "left":
-      self.pattern.rgb_vals = [rgba_yellow, rgba_none, rgba_none, rgba_none, rgba_yellow]
-      
-    self.color_publisher.publish(self.pattern)
-
-  def toggle_lane_following(self, request):
-    toggle = request.state
-
-    if toggle == "True":
-      self.lane_follow = True
-    else:
-      self.lane_follow = False
-
-    return SetFSMStateResponse()
 
   def hook(self):
     print("SHUTTING DOWN")

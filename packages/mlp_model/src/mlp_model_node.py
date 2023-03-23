@@ -12,6 +12,10 @@ import PIL
 
 from mlp_model.srv import MLPPredict, MLPPredictResponse
 
+"""
+Code for the MLP class taken from Multilayer_Perceptron.ipynb notebook on eClass
+link: https://eclass.srv.ualberta.ca/mod/resource/view.php?id=6964261
+"""
 class MLP(nn.Module):
   def __init__(self, input_dim, output_dim):
     super().__init__()
@@ -39,6 +43,11 @@ class MLPModelNode(DTROS):
     rospy.on_shutdown(self.hook)
 
     # Get path to trained model file
+    """
+    Code to get the path from the path from the source folder
+    provided by Zepeng Xiao on class discord
+    Link: https://discord.com/channels/1057734312461619313/1084894586566082770/1087792516625080431
+    """
     self.rospack = rospkg.RosPack()
     self.path = self.rospack.get_path("mlp_model")
     self.trained_model_path = str(self.path) + "/src/model.pt"
@@ -48,20 +57,31 @@ class MLPModelNode(DTROS):
     OUTPUT_DIM = 10
     self.model = MLP(INPUT_DIM, OUTPUT_DIM)
 
-    # https://stackoverflow.com/questions/60841650/how-to-test-one-single-image-in-pytorch
+    """
+    Code to load the model from a save model file taken from
+    PyTorch's Saving and Loading Models tutorial
+    Link: https://pytorch.org/tutorials/beginner/saving_loading_models.html
+    """
     self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     self.model.load_state_dict(torch.load(self.trained_model_path, map_location=self.device))
     self.transform_norm = transforms.Compose([
       transforms.Resize((28, 28)),
       transforms.ToTensor(),
     ])
-
     self.model_loaded = True
 
+    # Create service
     self.service = rospy.Service('mlp_predict_server', MLPPredict, self.predict_image)
+
     self.loginfo("Initialized")
 
   def predict_image(self, rawImage):
+    """
+    Instructions to load the image for predicitons adapted from
+    'How to test one single image in pytorch' post on stackoverflow
+    author: https://stackoverflow.com/users/6353583/nahim-terrazas
+    link: https://stackoverflow.com/questions/60841650/how-to-test-one-single-image-in-pytorch
+    """
     # Return if the model is not already loaded
     if not self.model_loaded:
       return MLPPredictResponse(-1)
@@ -87,6 +107,11 @@ class MLPModelNode(DTROS):
       output, _ = self.model(img_normalized)
       index = output.data.cpu().numpy().argmax()
       return MLPPredictResponse(index)
+  
+  def hook(self):
+    # Shut down service
+    print("SHUTTING DOWN")
+    self.service.shutdown('Done!')
 
 if __name__ == '__main__':
   node = MLPModelNode("mlp_model_node")

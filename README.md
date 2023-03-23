@@ -42,4 +42,8 @@ Autonomous lane following code was also borrowed from Justin Francis.
 
 Code was also borrowed (and cited in-code) from the following sources:
 
-- <!-- TODO: add sources -->
+- https://eclass.srv.ualberta.ca/mod/resource/view.php?id=6952069
+- https://stackoverflow.com/questions/60841650/how-to-test-one-single-image-in-pytorch
+- https://eclass.srv.ualberta.ca/mod/resource/view.php?id=6964261
+- https://pytorch.org/tutorials/beginner/saving_loading_models.html
+- https://discord.com/channels/1057734312461619313/1084894586566082770/1087792516625080431

@@ -24,6 +24,11 @@ BLACK_RANGE = [(0, 0, 0), (179, 75, 80)]
 DEBUG = False
 ENGLISH = False
 
+"""
+Much of the code for the Lane Following node is taken from
+the lane_follow package by Justin Francis on eClass
+Link: https://eclass.srv.ualberta.ca/mod/resource/view.php?id=6952069
+"""
 class LaneFollowNode(DTROS):
   def __init__(self, node_name):
     super(LaneFollowNode, self).__init__(node_name=node_name, node_type=NodeType.GENERIC)
@@ -283,7 +288,8 @@ class LaneFollowNode(DTROS):
       self.last_detected_apriltag = str(tag.tag_id)
     
     # TODO: if tag not within a range and offset, return (skip number detection)
-    # TODO: if we've already predicted this tag, return (keep dict of tagids to numbers)
+    # TODO: if we've already predicted this tag, return (keep dict of tag_ids to numbers)
+    # TODO: freeze while we're predicting
 
     # color version of image message
     img = self.jpeg.decode(msg.data)
@@ -338,7 +344,7 @@ class LaneFollowNode(DTROS):
 
     if not self.predicting:
       self.predicting = True
-      print('predicted number:', self.mlp_predict(msg))
+      print('Predicted number:', self.mlp_predict(msg))
       self.predicting = False
 
   def drive(self):
@@ -432,8 +438,8 @@ class LaneFollowNode(DTROS):
       self.vel_pub.publish(self.twist)
 
 if __name__ == "__main__":
-  node = LaneFollowNode("lanefollow_node")
+  node = LaneFollowNode("lane_follow_node")
   rate = rospy.Rate(8)  # 8hz
   while not rospy.is_shutdown():
-    # node.drive()
+    node.drive()
     rate.sleep()

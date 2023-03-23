@@ -3,15 +3,14 @@
 import rospy, rospkg, os
 import numpy as np
 from duckietown.dtros import DTROS, NodeType
-from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
-from turbojpeg import TurboJPEG
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 import PIL
+
+from mlp_model.srv import MLPPredict, MLPPredictResponse
 
 class MLP(nn.Module):
   def __init__(self, input_dim, output_dim):
@@ -22,20 +21,11 @@ class MLP(nn.Module):
     self.output_fc = nn.Linear(100, output_dim)
 
   def forward(self, x):
-    # x = [batch size, height, width]
     batch_size = x.shape[0]
     x = x.view(batch_size, -1)
-
-    # x = [batch size, height * width]
     h_1 = F.relu(self.input_fc(x))
-
-    # h_1 = [batch size, 250]
     h_2 = F.relu(self.hidden_fc(h_1))
-
-    # h_2 = [batch size, 100]
     y_pred = self.output_fc(h_2)
-
-    # y_pred = [batch size, output dim]
     return y_pred, h_2
 
 class MLPModelNode(DTROS):
@@ -43,21 +33,19 @@ class MLPModelNode(DTROS):
     super(MLPModelNode, self).__init__(node_name=node_name, node_type=NodeType.GENERIC)
     self.node_name = node_name
     self.veh = rospy.get_param("~veh")
-
-    self.br = CvBridge()
-    self.host = str(os.environ['VEHICLE_NAME'])
-    self.jpeg = TurboJPEG()
     self.model_loaded = False
 
-    self.image_sub = rospy.Subscriber("/output/detected_image", Image, self.image_callback, queue_size=1)
+    # Shutdown hook
+    rospy.on_shutdown(self.hook)
 
+    # Get path to trained model file
     self.rospack = rospkg.RosPack()
     self.path = self.rospack.get_path("mlp_model")
     self.trained_model_path = str(self.path) + "/src/model.pt"
 
+    # Initialize model
     INPUT_DIM = 28 * 28
     OUTPUT_DIM = 10
-
     self.model = MLP(INPUT_DIM, OUTPUT_DIM)
 
     # https://stackoverflow.com/questions/60841650/how-to-test-one-single-image-in-pytorch
@@ -70,49 +58,35 @@ class MLPModelNode(DTROS):
 
     self.model_loaded = True
 
-    self.pred_hz = 0.25
-    self.timer = rospy.Timer(rospy.Duration(1 / self.pred_hz), self.cb_pred_timer)
-    self.last_message = None
-
-    self.predicting = False
+    self.service = rospy.Service('mlp_predict_server', MLPPredict, self.predict_image)
     self.loginfo("Initialized")
 
-  def image_callback(self, msg):
-    if not msg:
-      return
-    
-    self.last_message = msg
-
   def predict_image(self, rawImage):
+    # Return if the model is not already loaded
+    if not self.model_loaded:
+      return MLPPredictResponse(-1)
+    
+    # Convert the byte array from bytes to numpy array
     try:
-      imgArray = np.frombuffer(rawImage.data, dtype=np.uint8)
-      imgArray = np.reshape(imgArray, (-1, rawImage.width))
+      imgArray = np.frombuffer(rawImage.image.data, dtype=np.uint8)
+      imgArray = np.reshape(imgArray, (-1, rawImage.image.width))
     except Exception as e:
       print(e)
-      return
+      return MLPPredictResponse(-1)
 
     img = PIL.Image.fromarray(imgArray)
 
+    # Apply transformation to get tensor and load to device
     img_normalized = self.transform_norm(img).float()
     img_normalized = img_normalized.unsqueeze(0)
     img_normalized = img_normalized.to(self.device)
 
+    # Predict number
     with torch.no_grad():
       self.model.eval()
       output, _ = self.model(img_normalized)
       index = output.data.cpu().numpy().argmax()
-      return index
-  
-  def cb_pred_timer(self, _):
-    if not self.last_message or not self.model_loaded:
-      return
-    
-    if not self.predicting:
-      self.predicting = True
-      print('predicting....')
-      predicted_digit = self.predict_image(self.last_message)
-      print('predicted class:', predicted_digit)
-      self.predicting = False
+      return MLPPredictResponse(index)
 
 if __name__ == '__main__':
   node = MLPModelNode("mlp_model_node")

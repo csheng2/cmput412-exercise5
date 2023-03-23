@@ -13,6 +13,8 @@ from cv_bridge import CvBridge
 from std_msgs.msg import Header
 from duckietown_msgs.msg import Twist2DStamped, LEDPattern
 
+from mlp_model.srv import MLPPredict, MLPPredictResponse
+
 # Color masks
 STOP_MASK = [(0, 75, 150), (5, 150, 255)]
 ROAD_MASK = [(20, 60, 0), (50, 255, 255)]
@@ -27,6 +29,18 @@ class LaneFollowNode(DTROS):
     super(LaneFollowNode, self).__init__(node_name=node_name, node_type=NodeType.GENERIC)
     self.node_name = node_name
     self.veh = rospy.get_param("~veh")
+
+    # Shutdown hook
+    rospy.on_shutdown(self.hook)
+
+    # Image processing helpers
+    self.jpeg = TurboJPEG()
+    self.br = CvBridge()
+
+    # Create server
+    rospy.wait_for_service('mlp_predict_server')
+    self.mlp_predict = rospy.ServiceProxy('mlp_predict_server', MLPPredict)
+    self.predicting = False
 
     # Subscribers
     self.sub = rospy.Subscriber(
@@ -49,11 +63,6 @@ class LaneFollowNode(DTROS):
       queue_size=1
     )
     self.color_publisher = rospy.Publisher(f"/{self.veh}/led_emitter_node/led_pattern", LEDPattern, queue_size = 1)
-    self.image_pub = rospy.Publisher("/output/detected_image", Image, queue_size=1)
-
-    # Image processing helpers
-    self.jpeg = TurboJPEG()
-    self.br = CvBridge()
 
     # Lane-following PID Variables
     self.proportional = None
@@ -93,7 +102,7 @@ class LaneFollowNode(DTROS):
     self.last_stop_time = None
     self.stop_cooldown = 3
     self.stop_duration = 5
-    self.stop_threshold_area = 5000 # minimun area of red to stop at
+    self.stop_threshold_area = 5000 # minimum area of red to stop at
     self.stop_starttime = None
     
     # ====== April tag variables ======
@@ -150,14 +159,12 @@ class LaneFollowNode(DTROS):
     self.pattern.header = Header()
     self.signalled = False
 
-    # Shutdown hook
-    rospy.on_shutdown(self.hook)
-
     self.loginfo("Initialized")
 
   def callback(self, msg):
     if not msg:
       return
+    
     self.last_message = msg
 
     img = self.jpeg.decode(msg.data)
@@ -209,7 +216,6 @@ class LaneFollowNode(DTROS):
     crop_width = crop.shape[1]
     hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
     stopMask = cv2.inRange(hsv, STOP_MASK[0], STOP_MASK[1])
-    # crop = cv2.bitwise_and(crop, crop, mask=stopMask)
     stopContours, _ = cv2.findContours(
       stopMask,
       cv2.RETR_EXTERNAL,
@@ -277,6 +283,7 @@ class LaneFollowNode(DTROS):
       self.last_detected_apriltag = str(tag.tag_id)
     
     # TODO: if tag not within a range and offset, return (skip number detection)
+    # TODO: if we've already predicted this tag, return (keep dict of tagids to numbers)
 
     # color version of image message
     img = self.jpeg.decode(msg.data)
@@ -329,7 +336,10 @@ class LaneFollowNode(DTROS):
 
     msg = self.br.cv2_to_imgmsg(final_mask, "mono8")
 
-    self.image_pub.publish(msg)
+    if not self.predicting:
+      self.predicting = True
+      print('predicted number:', self.mlp_predict(msg))
+      self.predicting = False
 
   def drive(self):
     if self.stop:
@@ -341,17 +351,15 @@ class LaneFollowNode(DTROS):
         
         # Determine next action, if we haven't already
         if not self.next_action:
-          # Get available action from last detected april tag
+          # Get available actions from last detected april tag
           if self.last_detected_apriltag and self.last_detected_apriltag in self.apriltag_actions:
             avail_actions = self.apriltag_actions[self.last_detected_apriltag]
             self.last_detected_apriltag = None
           else:
             avail_actions = [None]
 
-          # If we detect a duckiebot and that turn is valid
+          # Pick a random direction (random walk)
           self.next_action = random.choice(avail_actions)
-          
-          # self.change_color(self.next_action)
       else:
         # Do next action
         if self.next_action == "left":
@@ -388,10 +396,11 @@ class LaneFollowNode(DTROS):
             self.started_action = None
             self.next_action = None
         else:
+          # No actions - continue lane-following
           self.stop = False
           self.last_stop_time = rospy.get_time()
     else:
-      # Determine Velocity - based on if we're following a Duckiebot or not
+      # Set velocity
       self.twist.v = self.velocity
 
       # Determine Omega - based on lane-following
@@ -411,8 +420,7 @@ class LaneFollowNode(DTROS):
 
         # Publish command
         if DEBUG:
-          # self.loginfo(self.proportional, P, D, self.twist.omega, self.twist.v)
-          print(self.proportional, P, D, self.twist.omega, self.twist.v)
+          self.loginfo(f'{self.proportional}, {P}, {D}, {self.twist.omega}, {self.twist.v}')
       self.vel_pub.publish(self.twist)
 
   def hook(self):
@@ -420,12 +428,12 @@ class LaneFollowNode(DTROS):
     self.twist.v = 0
     self.twist.omega = 0
     self.vel_pub.publish(self.twist)
-    for i in range(8):
+    for _ in range(8):
       self.vel_pub.publish(self.twist)
 
 if __name__ == "__main__":
   node = LaneFollowNode("lanefollow_node")
   rate = rospy.Rate(8)  # 8hz
   while not rospy.is_shutdown():
-    node.drive()
+    # node.drive()
     rate.sleep()

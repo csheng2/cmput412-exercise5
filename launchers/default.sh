@@ -17,6 +17,7 @@ if [ ${HOSTNAME:0:6} = 'csc229' ]
 then
   dt-exec roslaunch lane_follow lane_follow_node.launch veh:=$VEHICLE_NAME
 else
+  dt-exec roslaunch lane_follow lane_follow_node.launch veh:=$VEHICLE_NAME
   dt-exec roslaunch mlp_model mlp_model_node.launch veh:=$VEHICLE_NAME
 fi
 

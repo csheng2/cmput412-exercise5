@@ -1,0 +1,12 @@
+<launch>
+	<arg name="node_name" value="mlp_model_node"/>
+	<arg name="pkg_name" value="mlp_model"/>
+	<arg name="veh" doc="Name of vehicle. ex: megaman"/>
+
+	<group ns="$(arg veh)">
+	  <node pkg="$(arg pkg_name)" type="$(arg node_name).py"  name="$(arg node_name)" output="screen">
+			<param name="veh" value="$(arg veh)" />
+		</node>
+	</group>
+
+</launch>

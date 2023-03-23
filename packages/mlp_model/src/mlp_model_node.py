@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import rospy, rospkg, os
+import numpy as np
 from duckietown.dtros import DTROS, NodeType
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
@@ -48,7 +49,7 @@ class MLPModelNode(DTROS):
     self.jpeg = TurboJPEG()
     self.model_loaded = False
 
-    self.image_sub = rospy.Subscriber("/output/detected_image", Image, self.image_callback)
+    self.image_sub = rospy.Subscriber("/output/detected_image", Image, self.image_callback, queue_size=1)
 
     self.rospack = rospkg.RosPack()
     self.path = self.rospack.get_path("mlp_model")
@@ -73,18 +74,23 @@ class MLPModelNode(DTROS):
     self.timer = rospy.Timer(rospy.Duration(1 / self.pred_hz), self.cb_pred_timer)
     self.last_message = None
 
+    self.predicting = False
     self.loginfo("Initialized")
 
   def image_callback(self, msg):
-
-    print("received image")
     if not msg:
       return
     
     self.last_message = msg
 
-  def predict_image(self, imgArray):
-    # TODO: make sure data types is actually array (currently is bytes)
+  def predict_image(self, rawImage):
+    try:
+      imgArray = np.frombuffer(rawImage.data, dtype=np.uint8)
+      imgArray = np.reshape(imgArray, (-1, rawImage.width))
+    except Exception as e:
+      print(e)
+      return
+
     img = PIL.Image.fromarray(imgArray)
 
     img_normalized = self.transform_norm(img).float()
@@ -101,9 +107,12 @@ class MLPModelNode(DTROS):
     if not self.last_message or not self.model_loaded:
       return
     
-    print('predicting....')
-    predicted_digit = self.predict_image(self.last_message.data)
-    print('predicted class:', predicted_digit)
+    if not self.predicting:
+      self.predicting = True
+      print('predicting....')
+      predicted_digit = self.predict_image(self.last_message)
+      print('predicted class:', predicted_digit)
+      self.predicting = False
 
 if __name__ == '__main__':
   node = MLPModelNode("mlp_model_node")

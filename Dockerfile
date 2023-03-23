@@ -1,7 +1,7 @@
 # parameters
-ARG REPO_NAME="April_tag_detection"
-ARG DESCRIPTION="This is a repo to detect apriltags"
-ARG MAINTAINER="Sharyat Singh Bhanwala (sharyatsb@gmail.com)"
+ARG REPO_NAME="cmput412-exercise5"
+ARG DESCRIPTION="This is a repo to drive around looking for numbers and detecting them"
+ARG MAINTAINER="Celina Sheng (csheng2@ualberta.ca), Nadeen Mohamed (nadeen@ualberta.ca), Sharyat Singh Bhanwala (sharyatsb@gmail.com)"
 # pick an icon from: https://fontawesome.com/v4.7.0/icons/
 ARG ICON="cube"
 

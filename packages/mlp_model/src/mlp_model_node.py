@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 
-import rospy, rospkg, cv2, os
+import rospy, rospkg, os
 from duckietown.dtros import DTROS, NodeType
 from cv_bridge import CvBridge
-from sensor_msgs.msg import CompressedImage, Image, CameraInfo
-from turbojpeg import TurboJPEG, TJPF_GRAY
-from std_msgs.msg import Int8MultiArray
-
+from sensor_msgs.msg import Image
+from turbojpeg import TurboJPEG
 
 import torch
 import torch.nn as nn

@@ -1,47 +1,45 @@
-# Template: template-ros
+# Exercise 5: ML for Robotics
 
-This template provides a boilerplate repository
-for developing ROS-based software in Duckietown.
+This repository contains implementation solutions for exercise 5. For information about the project, please read the report at:
 
-**NOTE:** If you want to develop software that does not use
-ROS, check out [this template](https://github.com/duckietown/template-basic).
+<!-- TODO: add sharyat's site -->
 
+[Nadeen Mohamed's site](https://sites.google.com/ualberta.ca/nadeen-cmput-412/written-reports/exercise-5) or [Celina Sheng's site](https://sites.google.com/ualberta.ca/csheng2-cmput-412/exercise-5) or [Sharyat Singh Bhanwala's Site]()
 
-## How to use it
+## Structure
 
-### 1. Fork this repository
+There are two packages in this file: mlp_model and lane_follow. We will discuss the purpose of the python source files for each package (which are located inside the packages `src` folder).
 
-Use the fork button in the top-right corner of the github page to fork this template repository.
+### MLP Model
 
+<!-- TODO: add info about MLP model -->
 
-### 2. Create a new repository
+### Lane Follow
 
-Create a new repository on github.com while
-specifying the newly forked template repository as
-a template for your new repository.
+<!-- TODO: add more info about lane following -->
 
+- `lane_follow_node.py`: Implements a node to autonomously drive in a Duckietown lane. It contains a rosservice, which tells the node whether we want to lane follow or not.
 
-### 3. Define dependencies
+## Execution:
 
-List the dependencies in the files `dependencies-apt.txt` and
-`dependencies-py3.txt` (apt packages and pip packages respectively).
+To run the program, ensure that the variable `$BOT` stores your robot's host name (ie. `csc229xx`), and run the following commands:
 
+```
+dts devel build -f # builds locally
+dts devel build -f -H $BOT.local # builds on the robot
+dts devel run -R $BOT.local && dts devel run -H $BOT.local # runs locally and on robot
+```
 
-### 4. Place your code
+To shutdown the program, enter `CTRL + C` in your terminal.
 
-Place your code in the directory `/packages/` of
-your new repository.
+## Credit:
 
+This code is built from the duckietown template that provides a boilerplate repository for developing ROS-based software in Duckietown (https://github.com/duckietown/template-basic).
 
-### 5. Setup launchers
+Build on top of by Nadeen Mohamed, Celina Sheng, and Sharyat Singh Bhanwala.
 
-The directory `/launchers` can contain as many launchers (launching scripts)
-as you want. A default launcher called `default.sh` must always be present.
+Autonomous lane following code was also borrowed from Justin Francis.
 
-If you create an executable script (i.e., a file with a valid shebang statement)
-a launcher will be created for it. For example, the script file 
-`/launchers/my-launcher.sh` will be available inside the Docker image as the binary
-`dt-launcher-my-launcher`.
+Code was also borrowed (and cited in-code) from the following sources:
 
-When launching a new container, you can simply provide `dt-launcher-my-launcher` as
-command.
+- <!-- TODO: add sources -->

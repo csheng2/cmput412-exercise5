@@ -323,11 +323,13 @@ class LaneFollowNode(DTROS):
         max_idx = i
         max_area = area
 
-    mask = np.zeros(cropped_image.shape, np.uint8)
+    mask = np.zeros(second_mask.shape, np.uint8)
     cv2.drawContours(mask, contours, max_idx, (255, 255, 255), thickness=cv2.FILLED)
     final_mask = cv2.bitwise_and(mask, mask, mask=second_mask)
 
-    self.image_pub.publish(self.br.cv2_to_imgmsg(final_mask, "bgr8"))
+    msg = self.br.cv2_to_imgmsg(final_mask, "mono8")
+
+    self.image_pub.publish(msg)
 
   def drive(self):
     if self.stop:

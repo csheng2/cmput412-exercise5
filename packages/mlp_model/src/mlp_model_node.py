@@ -98,7 +98,6 @@ class MLPModelNode(DTROS):
 
     # Apply transformation to get tensor and load to device
     img_normalized = self.transform_norm(img).float()
-    img_normalized = img_normalized.unsqueeze(0)
     img_normalized = img_normalized.to(self.device)
 
     # Predict number

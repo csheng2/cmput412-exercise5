@@ -187,9 +187,9 @@ class LaneFollowNode(DTROS):
     self.last_message = None
     
     # Lane detection timer
-    self.lane_detection_hz = 8
-    self.timer = rospy.Timer(rospy.Duration(1 / self.lane_detection_hz), self.cb_lane_detection_timer)
-    self.last_message = None
+    # self.lane_detection_hz = 8
+    # self.timer = rospy.Timer(rospy.Duration(1 / self.lane_detection_hz), self.cb_lane_detection_timer)
+    # self.last_message = None
 
     # Initialize LED color-changing
     self.pattern = LEDPattern()
@@ -202,12 +202,12 @@ class LaneFollowNode(DTROS):
     self.loginfo("Initialized")
 
   def callback(self, msg):
-    if not msg:
-      return
+  #   if not msg:
+  #     return
     
-    self.last_message = msg
+  #   self.last_message = msg
 
-  def cb_lane_detection_timer(self, _):
+  # def cb_lane_detection_timer(self, _):
     msg = self.last_message
     # Don't detect we don't have a message or if we're predicting a number
     if not msg or self.predicting:

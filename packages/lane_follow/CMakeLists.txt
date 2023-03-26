@@ -6,7 +6,21 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   nav_msgs
   std_msgs
-  # duckietown_msgs # Every duckietown packages should use this.
+  message_generation
+  duckietown_msgs
+)
+
+catkin_python_setup()
+
+add_service_files(
+  FILES
+  MLPPredict.srv
+)
+
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+  duckietown_msgs
 )
 
 add_dependencies(${catkin_EXPORTED_TARGETS})

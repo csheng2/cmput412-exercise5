@@ -18,7 +18,7 @@ then
   # Don't run MLP node on the bot
   dt-exec roslaunch lane_follow lane_follow_node.launch veh:=$VEHICLE_NAME
 else
-  dt-exec roslaunch lane_follow lane_follow_node.launch veh:=$VEHICLE_NAME
+  # dt-exec roslaunch lane_follow lane_follow_node.launch veh:=$VEHICLE_NAME
   dt-exec roslaunch mlp_model mlp_model_node.launch veh:=$VEHICLE_NAME
 fi
 

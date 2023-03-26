@@ -17,7 +17,7 @@ from sensor_msgs.msg import CameraInfo, CompressedImage, Image
 from std_msgs.msg import Header
 from duckietown_msgs.msg import Twist2DStamped, LEDPattern
 
-from mlp_model.srv import MLPPredict
+from lane_follow.srv import MLPPredict
 
 # Color masks
 STOP_MASK = [(0, 75, 150), (5, 150, 255)]

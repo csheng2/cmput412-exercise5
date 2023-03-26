@@ -174,8 +174,13 @@ class LaneFollowNode(DTROS):
     self.number_apriltag_map = {}
 
     # Apriltag detection timer
-    self.publish_hz = 2
-    self.timer = rospy.Timer(rospy.Duration(1 / self.publish_hz), self.cb_apriltag_timer)
+    self.apriltag_hz = 2
+    self.timer = rospy.Timer(rospy.Duration(1 / self.apriltag_hz), self.cb_apriltag_timer)
+    self.last_message = None
+    
+    # Lane detection timer
+    self.lane_hz = 8
+    self.timer = rospy.Timer(rospy.Duration(1 / self.lane_hz), self.cb_lane_timer)
     self.last_message = None
 
     # Initialize LED color-changing
@@ -191,8 +196,10 @@ class LaneFollowNode(DTROS):
     
     self.last_message = msg
 
-    # Don't detect if we're predicting a number
-    if self.predicting:
+  def cb_lane_time(self, _):
+    msg = self.last_message
+    # Don't detect we don't have a message or if we're predicting a number
+    if not msg or self.predicting:
       return
 
     img = self.jpeg.decode(msg.data)

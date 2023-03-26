@@ -104,8 +104,16 @@ class MLPModelNode(DTROS):
     with torch.no_grad():
       self.model.eval()
       output, _ = self.model(img_normalized)
+      predictions = output.data.cpu()
       index = output.data.cpu().numpy().argmax()
-      return MLPPredictResponse(index)
+      distribution = nn.functional.softmax(predictions, dim=1)
+      probability = distribution.numpy()[0][index]
+
+      # only return predicted digit if we have a relatively high probability
+      if probability > 0.9:
+        return MLPPredictResponse(index)
+      else:
+        return MLPPredictResponse(-1)
   
   def hook(self):
     # Shut down service

@@ -143,6 +143,7 @@ class LaneFollowNode(DTROS):
       self.camera_model.K, self.camera_model.D, None, rect_K, (W, H), cv2.CV_32FC1
     )
 
+    # Directions available for every april tag
     self.apriltag_actions = {
       "169": ["right", "left"],
       "162": ["right", "left"],
@@ -152,9 +153,27 @@ class LaneFollowNode(DTROS):
       "58": ["right", "straight"]
     }
 
+    #  Store last detected apriltag for 
     self.last_detected_apriltag = None
 
-    # Apriltag timer
+    # Apriltag locations
+    self.apriltag_locations = {
+      "200": {"x": 0.17, "y": 0.17},
+      "201": {"x": 1.65, "y": 0.17},
+      "94": {"x": 1.65, "y": 2.84},
+      "93": {"x": 0.17, "y": 2.84},
+      "153": {"x": 1.75, "y": 1.252},
+      "133": {"x": 1.253, "y": 1.755},
+      "58": {"x": 0.574, "y": 1.259},
+      "62": {"x": 0.075, "y": 1.755},
+      "169": {"x": 0.574, "y": 1.755},
+      "162": {"x": 1.253, "y": 1.253}
+    }
+
+    # Number to apriltag map -- add number detections here as we detect them
+    self.number_apriltag_map = {}
+
+    # Apriltag detection timer
     self.publish_hz = 2
     self.timer = rospy.Timer(rospy.Duration(1 / self.publish_hz), self.cb_apriltag_timer)
     self.last_message = None
@@ -171,6 +190,10 @@ class LaneFollowNode(DTROS):
       return
     
     self.last_message = msg
+
+    # Don't detect if we're predicting a number
+    if self.predicting:
+      return
 
     img = self.jpeg.decode(msg.data)
     crop = img[300:-1, :, :]
@@ -260,7 +283,8 @@ class LaneFollowNode(DTROS):
     Callback for timer
     '''
     msg = self.last_message
-    if not msg:
+    # Don't detect we don't have a message or if we're predicting a number
+    if not msg or self.predicting:
       return
 
     self.last_detected_apriltag = None
@@ -276,20 +300,29 @@ class LaneFollowNode(DTROS):
       return
 
     # Only save the april tag if it's within a close distance
-    min_tag_distance = 2
-    min_tag_idx = 0
-    for tag in tags:
-      distance = tag.pose_t[2][0]
-      if distance > min_tag_distance:
-        continue
-    
-    # save tag id if we're about to go to an intersection
-    if str(tags[min_tag_idx]) in self.apriltag_actions:
-      self.last_detected_apriltag = str(tag.tag_id)
-    
-    # TODO: if tag not within a range and offset, return (skip number detection)
-    # TODO: if we've already predicted this tag, return (keep dict of tag_ids to numbers)
-    # TODO: freeze while we're predicting
+    min_tag_distance = 1
+    min_tag_idx = -1
+    for i in range(len(tags)):
+      distance = tags[i].pose_t[2][0]
+      # If it's closer than that distance, update
+      if distance < min_tag_distance:
+        min_tag_idx = i
+
+    closest_tag_id = str(tags[min_tag_idx])
+
+    # Save tag id if we're about to go to an intersection
+    if closest_tag_id in self.apriltag_actions:
+      self.last_detected_apriltag = closest_tag_id
+
+    # Skip detection if we can't find a suitable apriltag or we've already detected that number
+    if min_tag_idx == -1 or closest_tag_id in self.number_apriltag_map.values():
+      return
+
+    # Stop moving
+    self.predicting = True
+    self.twist.v = 0
+    self.twist.omega = 0
+    self.vel_pub.publish(self.twist)
 
     # color version of image message
     img = self.jpeg.decode(msg.data)
@@ -311,6 +344,8 @@ class LaneFollowNode(DTROS):
     max_idx = -1
     for i in range(len(contours)):
       area = cv2.contourArea(contours[i])
+      bounding_rect = cv2.boundingRect(contours[max_idx])
+      # TODO: only update max_idx if bounding_rect within tag's bounding rect
       if area > max_area:
         max_idx = i
         max_area = area
@@ -341,13 +376,38 @@ class LaneFollowNode(DTROS):
     final_mask = cv2.bitwise_and(mask, mask, mask=second_mask)
 
     msg = self.br.cv2_to_imgmsg(final_mask, "mono8")
+    prediction = self.mlp_predict(msg)
+    self.predicting = False
 
-    if not self.predicting:
-      self.predicting = True
-      print('Predicted number:', self.mlp_predict(msg))
-      self.predicting = False
+    if prediction < 0:
+      # Invalid prediction
+      print('Unable to predict number')
+      return
+    
+    # Print tag and location
+    print('Predicted number', prediction, 'at location', self.apriltag_locations[closest_tag_id])
+
+    # Add to apriltag number map
+    self.number_apriltag_map[str(prediction)] = closest_tag_id
+    
+    # TODO: publish detection to image publisher
+
+    # Properly terminate the program if we've found all numbers
+    if len(node.number_apriltag_map) == 10:
+      # Send an empty image to the service to signal that we're shutting down
+      img_msg = Image()
+      img_msg.data = None
+      self.mlp_predict(img_msg)
+
+      # Shutdown current node
+      rospy.signal_shutdown("Found all ten numbers!")
 
   def drive(self):
+    # Don't move if we're prediction
+    if self.predicting:
+      return
+    
+    # If we're stopped at an intersection
     if self.stop:
       if rospy.get_time() - self.stop_starttime < self.stop_duration:
         # Stop
@@ -405,6 +465,7 @@ class LaneFollowNode(DTROS):
           # No actions - continue lane-following
           self.stop = False
           self.last_stop_time = rospy.get_time()
+    # If we're lane following
     else:
       # Set velocity
       self.twist.v = self.velocity

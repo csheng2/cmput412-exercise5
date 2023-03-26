@@ -315,7 +315,7 @@ class LaneFollowNode(DTROS):
       if distance < min_tag_distance:
         min_tag_idx = i
 
-    closest_tag_id = str(tags[min_tag_idx])
+    closest_tag_id = str(tags[min_tag_idx].tag_id)
 
     # Save tag id if we're about to go to an intersection
     if closest_tag_id in self.apriltag_actions:
@@ -349,11 +349,19 @@ class LaneFollowNode(DTROS):
 
     max_area = 2000
     max_idx = -1
+
+    # Detection region wrt to detected apriltag
+    [TL, TR, _, _] = tags[min_tag_idx].corners
+
     for i in range(len(contours)):
       area = cv2.contourArea(contours[i])
-      bounding_rect = cv2.boundingRect(contours[max_idx])
-      # TODO: only update max_idx if bounding_rect within tag's bounding rect
-      if area > max_area:
+      [X, Y, W, H] = cv2.boundingRect(contours[max_idx])
+      # Top left's x within a 20 pixel error of contour top left
+      TL_Good = abs(TL[0] - X) < 20
+      # Top right's x within a 20 pixel error of contour top right
+      TR_Good = abs(TR[0] - (X + W)) < 20
+      # Only update if the area is greater than 200 pixels squared and
+      if area > max_area and TL_Good and TR_Good:
         max_idx = i
         max_area = area
 

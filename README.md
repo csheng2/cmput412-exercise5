@@ -27,7 +27,7 @@ To run the program, ensure that the variable `$BOT` stores your robot's host nam
 ```
 dts devel build -f # builds locally
 dts devel build -f -H $BOT.local # builds on the robot
-dts devel run -R $BOT.local && dts devel run -H $BOT.local # runs locally and on robot
+dts devel run -R $BOT && dts devel run -H $BOT.local # runs locally and on robot
 ```
 
 To shutdown the program, enter `CTRL + C` in your terminal.

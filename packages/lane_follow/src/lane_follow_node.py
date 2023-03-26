@@ -10,7 +10,7 @@ from image_geometry import PinholeCameraModel
 from cv_bridge import CvBridge
 
 from tf import transformations as tr
-from tf2_ros import StaticTransformBroadcaster
+from tf2_ros import TransformBroadcaster
 
 from geometry_msgs.msg import TransformStamped
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image
@@ -166,16 +166,16 @@ class LaneFollowNode(DTROS):
 
     # Apriltag locations
     self.apriltag_locations = {
-      "200": {"x": 0.17, "y": 0.17},
-      "201": {"x": 1.65, "y": 0.17},
-      "94": {"x": 1.65, "y": 2.84},
-      "93": {"x": 0.17, "y": 2.84},
-      "153": {"x": 1.75, "y": 1.252},
-      "133": {"x": 1.253, "y": 1.755},
-      "58": {"x": 0.574, "y": 1.259},
-      "62": {"x": 0.075, "y": 1.755},
-      "169": {"x": 0.574, "y": 1.755},
-      "162": {"x": 1.253, "y": 1.253}
+      "200": {"x": 0.17, "y": 0.17, "z": 0.075, "yaw": 2.35619, "pitch": 0, "roll": -1.5708},
+      "201": {"x": 1.65, "y": 0.17, "z": 0.075, "yaw": -2.35619, "pitch": 0, "roll": -1.5708},
+      "94": {"x": 1.65, "y": 2.84, "z": 0.075, "yaw": -0.785398, "pitch": 0, "roll": -1.5708},
+      "93": {"x": 0.17, "y": 2.84, "z": 0.075, "yaw": 0.785398, "pitch": 0, "roll": -1.5708},
+      "153": {"x": 1.75, "y": 1.252, "z": 0.075, "yaw": 0, "pitch": 0, "roll": -1.5708},
+      "133": {"x": 1.253, "y": 1.755, "z": 0.075, "yaw": 3.14159, "pitch": 0, "roll": -1.5708},
+      "58": {"x": 0.574, "y": 1.259, "z": 0.075, "yaw": 0, "pitch": 0, "roll": -1.5708},
+      "62": {"x": 0.075, "y": 1.755, "z": 0.075, "yaw": 3.14159, "pitch": 0, "roll": -1.5708},
+      "169": {"x": 0.574, "y": 1.755, "z": 0.075, "yaw": 1.5708, "pitch": 0, "roll": -1.5708},
+      "162": {"x": 1.253, "y": 1.253, "z": 0.075, "yaw": -1.5708, "pitch": 0, "roll": -1.5708},
     }
 
     # Number to apriltag map -- add number detections here as we detect them
@@ -197,7 +197,7 @@ class LaneFollowNode(DTROS):
     self.signalled = False
 
     # Transform broadcaster
-    self.broadcaster = StaticTransformBroadcaster()
+    self.broadcaster = TransformBroadcaster()
 
     self.loginfo("Initialized")
 
@@ -434,7 +434,7 @@ class LaneFollowNode(DTROS):
     print(
       'Predicted number', prediction.number,
       'under Apriltag id', closest_tag_id,
-      'at location', self.apriltag_locations[closest_tag_id]
+      f"at location (x = {self.apriltag_locations[closest_tag_id]['x']}, y = {self.apriltag_locations[closest_tag_id]['y']}"
     )
 
     # Add to apriltag number map
@@ -462,14 +462,18 @@ class LaneFollowNode(DTROS):
     # Initialize transform under its april tag's frame
     static_transform = TransformStamped()
     static_transform.header.stamp = rospy.Time.now()
-    static_transform.header.frame_id = f'at_{tag_id}_static'
+    static_transform.header.frame_id = "world"
     static_transform.child_frame_id = str(number)
 
     # Offset and angle are 0
-    static_transform.transform.translation.x = 0.0
-    static_transform.transform.translation.y = 0.0
-    static_transform.transform.translation.z = 0.0
-    quat = tr.quaternion_from_euler(0.0, 0.0, 0.0)
+    static_transform.transform.translation.x = self.apriltag_locations[tag_id]['x']
+    static_transform.transform.translation.y = self.apriltag_locations[tag_id]['y']
+    static_transform.transform.translation.z = self.apriltag_locations[tag_id]['z']
+    quat = tr.quaternion_from_euler(
+      self.apriltag_locations[tag_id]['yaw'],
+      self.apriltag_locations[tag_id]['pitch'],
+      self.apriltag_locations[tag_id]['roll']
+    )
     static_transform.transform.rotation.x = quat[0]
     static_transform.transform.rotation.y = quat[1]
     static_transform.transform.rotation.z = quat[2]

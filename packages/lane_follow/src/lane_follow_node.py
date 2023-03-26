@@ -10,7 +10,7 @@ from image_geometry import PinholeCameraModel
 from cv_bridge import CvBridge
 
 from tf import transformations as tr
-from tf2_ros import TransformBroadcaster
+from tf2_ros import StaticTransformBroadcaster
 
 from geometry_msgs.msg import TransformStamped
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image
@@ -197,7 +197,7 @@ class LaneFollowNode(DTROS):
     self.signalled = False
 
     # Transform broadcaster
-    self.broadcaster = TransformBroadcaster()
+    self.broadcaster = StaticTransformBroadcaster()
 
     self.loginfo("Initialized")
 
@@ -434,7 +434,7 @@ class LaneFollowNode(DTROS):
     print(
       'Predicted number', prediction.number,
       'under Apriltag id', closest_tag_id,
-      f"at location (x = {self.apriltag_locations[closest_tag_id]['x']}, y = {self.apriltag_locations[closest_tag_id]['y']}"
+      f"at location (x = {self.apriltag_locations[closest_tag_id]['x']}, y = {self.apriltag_locations[closest_tag_id]['y']})"
     )
 
     # Add to apriltag number map

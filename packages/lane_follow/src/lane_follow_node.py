@@ -308,6 +308,9 @@ class LaneFollowNode(DTROS):
     tags = self.at_detector.detect(img, True, self._camera_parameters, self.tag_size)
 
     if len(tags) == 0:
+      # Publish image before returning
+      outline_img_msg = CompressedImage(format="jpeg", data=self.jpeg.encode(img))
+      self.pub.publish(outline_img_msg)
       return
 
     # Only save the april tag if it's within a close distance
@@ -321,6 +324,9 @@ class LaneFollowNode(DTROS):
 
     # Return if we can't find a close enough april tag
     if min_tag_idx == -1:
+      # Publish image before returning
+      outline_img_msg = CompressedImage(format="jpeg", data=self.jpeg.encode(img))
+      self.pub.publish(outline_img_msg)
       return
 
     closest_tag_id = str(tags[min_tag_idx].tag_id)
@@ -331,6 +337,9 @@ class LaneFollowNode(DTROS):
 
     # Skip detection if we've already detected that number
     if closest_tag_id in self.number_apriltag_map.values():
+      # Publish image before returning
+      outline_img_msg = CompressedImage(format="jpeg", data=self.jpeg.encode(img))
+      self.pub.publish(outline_img_msg)
       return
 
     # Stop moving
@@ -375,6 +384,9 @@ class LaneFollowNode(DTROS):
 
     if max_blue_idx == -1:
       self.predicting = False
+      # Publish image before returning
+      outline_img_msg = CompressedImage(format="jpeg", data=self.jpeg.encode(img))
+      self.pub.publish(outline_img_msg)
       return
     
     [X, Y, W, H] = cv2.boundingRect(blue_contours[max_blue_idx])
@@ -406,6 +418,9 @@ class LaneFollowNode(DTROS):
     if prediction.number < 0:
       # Invalid prediction
       print('Unable to predict number')
+      # Publish image before returning
+      outline_img_msg = CompressedImage(format="jpeg", data=self.jpeg.encode(img))
+      self.pub.publish(outline_img_msg)
       return 
     
     # Print tag and location
@@ -423,7 +438,7 @@ class LaneFollowNode(DTROS):
     outline_img_msg = CompressedImage(format="jpeg", data=self.jpeg.encode(img))
     self.pub.publish(outline_img_msg)
 
-    # TODO: publish transform
+    # TODO: publish transforms
 
     # Properly terminate the program if we've found all numbers
     if len(node.number_apriltag_map) == 10:

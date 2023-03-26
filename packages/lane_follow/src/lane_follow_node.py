@@ -181,6 +181,11 @@ class LaneFollowNode(DTROS):
     self.apriltag_hz = 2
     self.timer = rospy.Timer(rospy.Duration(1 / self.apriltag_hz), self.cb_apriltag_timer)
     self.last_message = None
+    
+    # Lane detection timer
+    self.lane_detection_hz = 8
+    self.timer = rospy.Timer(rospy.Duration(1 / self.lane_detection_hz), self.cb_lane_detection_timer)
+    self.last_message = None
 
     # Initialize LED color-changing
     self.pattern = LEDPattern()
@@ -195,7 +200,7 @@ class LaneFollowNode(DTROS):
     
     self.last_message = msg
 
-  def detect_lane(self):
+  def cb_lane_detection_timer(self, _):
     msg = self.last_message
     # Don't detect we don't have a message or if we're predicting a number
     if not msg or self.predicting:
@@ -314,14 +319,18 @@ class LaneFollowNode(DTROS):
       if distance < min_tag_distance:
         min_tag_idx = i
 
+    # Return if we can't find a close enough april tag
+    if min_tag_idx == -1:
+      return
+
     closest_tag_id = str(tags[min_tag_idx].tag_id)
 
     # Save tag id if we're about to go to an intersection
     if closest_tag_id in self.apriltag_actions:
       self.last_detected_apriltag = closest_tag_id
 
-    # Skip detection if we can't find a suitable apriltag or we've already detected that number
-    if min_tag_idx == -1 or closest_tag_id in self.number_apriltag_map.values():
+    # Skip detection if we've already detected that number
+    if closest_tag_id in self.number_apriltag_map.values():
       return
 
     # Stop moving
@@ -359,15 +368,16 @@ class LaneFollowNode(DTROS):
       TL_Good = abs(TL[0] - X) < 20
       # Top right's x within a 20 pixel error of contour top right
       TR_Good = abs(TR[0] - (X + W)) < 20
-      # Only update if the area is greater than 200 pixels squared and
+      # Only update if the area is greater than 200 pixels squared and within bounding box
       if area > max_area and TL_Good and TR_Good:
         max_blue_idx = i
         max_area = area
 
     if max_blue_idx == -1:
+      self.predicting = False
       return
     
-    [X, Y, W, H] = cv2.boundingRect(contours[max_idx])
+    [X, Y, W, H] = cv2.boundingRect(blue_contours[max_blue_idx])
     cropped_image = frame[Y:Y+H, X:X+W]
     second_mask = cv2.inRange(cropped_image, BLACK_RANGE[0], BLACK_RANGE[1])
 
@@ -393,16 +403,20 @@ class LaneFollowNode(DTROS):
     prediction = self.mlp_predict(msg)
     self.predicting = False
 
-    if prediction < 0:
+    if prediction.number < 0:
       # Invalid prediction
       print('Unable to predict number')
-      return
+      return 
     
     # Print tag and location
-    print('Predicted number', prediction, 'at location', self.apriltag_locations[closest_tag_id])
+    print(
+      'Predicted number', prediction.number,
+      'under Apriltag id', closest_tag_id,
+      'at location', self.apriltag_locations[closest_tag_id]
+    )
 
     # Add to apriltag number map
-    self.number_apriltag_map[str(prediction)] = closest_tag_id
+    self.number_apriltag_map[str(prediction.number)] = closest_tag_id
     
     # Publish outline of detection to image publisher
     cv2.drawContours(img, blue_contours, max_blue_idx, (0, 255, 0), 3)
@@ -521,6 +535,5 @@ if __name__ == "__main__":
   node = LaneFollowNode("lane_follow_node")
   rate = rospy.Rate(8)  # 8hz
   while not rospy.is_shutdown():
-    node.detect_lane()
     node.drive()
     rate.sleep()

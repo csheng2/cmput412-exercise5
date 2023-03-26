@@ -67,7 +67,11 @@ class LaneFollowNode(DTROS):
       Twist2DStamped,
       queue_size=1
     )
-    self.color_publisher = rospy.Publisher(f"/{self.veh}/led_emitter_node/led_pattern", LEDPattern, queue_size = 1)
+    self.detection_pub = rospy.Publisher(
+      f"/{self.veh}/detection/image/mask/compressed",
+      CompressedImage,
+      queue_size=1
+    )
 
     # Lane-following PID Variables
     self.proportional = None
@@ -177,11 +181,6 @@ class LaneFollowNode(DTROS):
     self.apriltag_hz = 2
     self.timer = rospy.Timer(rospy.Duration(1 / self.apriltag_hz), self.cb_apriltag_timer)
     self.last_message = None
-    
-    # Lane detection timer
-    self.lane_hz = 8
-    self.timer = rospy.Timer(rospy.Duration(1 / self.lane_hz), self.cb_lane_timer)
-    self.last_message = None
 
     # Initialize LED color-changing
     self.pattern = LEDPattern()
@@ -196,7 +195,7 @@ class LaneFollowNode(DTROS):
     
     self.last_message = msg
 
-  def cb_lane_time(self, _):
+  def detect_lane(self):
     msg = self.last_message
     # Don't detect we don't have a message or if we're predicting a number
     if not msg or self.predicting:
@@ -341,31 +340,31 @@ class LaneFollowNode(DTROS):
 
     # Mask for numbers
     mask = cv2.inRange(hsv, BLUE_RANGE[0], BLUE_RANGE[1])
-    contours, _ = cv2.findContours(
+    blue_contours, _ = cv2.findContours(
       mask,
       cv2.RETR_EXTERNAL,
       cv2.CHAIN_APPROX_NONE
     )
 
     max_area = 2000
-    max_idx = -1
+    max_blue_idx = -1
 
     # Detection region wrt to detected apriltag
     [TL, TR, _, _] = tags[min_tag_idx].corners
 
-    for i in range(len(contours)):
-      area = cv2.contourArea(contours[i])
-      [X, Y, W, H] = cv2.boundingRect(contours[max_idx])
+    for i in range(len(blue_contours)):
+      area = cv2.contourArea(blue_contours[i])
+      [X, Y, W, H] = cv2.boundingRect(blue_contours[i])
       # Top left's x within a 20 pixel error of contour top left
       TL_Good = abs(TL[0] - X) < 20
       # Top right's x within a 20 pixel error of contour top right
       TR_Good = abs(TR[0] - (X + W)) < 20
       # Only update if the area is greater than 200 pixels squared and
       if area > max_area and TL_Good and TR_Good:
-        max_idx = i
+        max_blue_idx = i
         max_area = area
 
-    if max_idx == -1:
+    if max_blue_idx == -1:
       return
     
     [X, Y, W, H] = cv2.boundingRect(contours[max_idx])
@@ -405,7 +404,12 @@ class LaneFollowNode(DTROS):
     # Add to apriltag number map
     self.number_apriltag_map[str(prediction)] = closest_tag_id
     
-    # TODO: publish detection to image publisher
+    # Publish outline of detection to image publisher
+    cv2.drawContours(img, blue_contours, max_blue_idx, (0, 255, 0), 3)
+    outline_img_msg = CompressedImage(format="jpeg", data=self.jpeg.encode(img))
+    self.pub.publish(outline_img_msg)
+
+    # TODO: publish transform
 
     # Properly terminate the program if we've found all numbers
     if len(node.number_apriltag_map) == 10:
@@ -517,5 +521,6 @@ if __name__ == "__main__":
   node = LaneFollowNode("lane_follow_node")
   rate = rospy.Rate(8)  # 8hz
   while not rospy.is_shutdown():
+    node.detect_lane()
     node.drive()
     rate.sleep()

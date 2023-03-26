@@ -205,10 +205,10 @@ class LaneFollowNode(DTROS):
   #   if not msg:
   #     return
     
-  #   self.last_message = msg
+    self.last_message = msg
 
   # def cb_lane_detection_timer(self, _):
-    msg = self.last_message
+    # msg = self.last_message
     # Don't detect we don't have a message or if we're predicting a number
     if not msg or self.predicting:
       return

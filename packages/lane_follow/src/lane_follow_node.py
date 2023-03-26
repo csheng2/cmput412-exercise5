@@ -183,8 +183,8 @@ class LaneFollowNode(DTROS):
 
     # Apriltag detection timer
     self.apriltag_hz = 2
-    self.timer = rospy.Timer(rospy.Duration(1 / self.apriltag_hz), self.cb_apriltag_timer)
     self.last_message = None
+    self.timer = rospy.Timer(rospy.Duration(1 / self.apriltag_hz), self.cb_apriltag_timer)
     
     # Lane detection timer
     # self.lane_detection_hz = 8

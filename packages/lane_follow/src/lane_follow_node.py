@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 
-import rospy, random
+import rospy, random, cv2
+import numpy as np
 
 from duckietown.dtros import DTROS, NodeType
-from sensor_msgs.msg import CameraInfo, CompressedImage, Image
 from dt_apriltags import Detector
 from turbojpeg import TurboJPEG, TJPF_GRAY
 from image_geometry import PinholeCameraModel
-import cv2
-import numpy as np
 from cv_bridge import CvBridge
+
+from tf import transformations as tr
+from tf2_ros import StaticTransformBroadcaster
+
+from geometry_msgs.msg import TransformStamped
+from sensor_msgs.msg import CameraInfo, CompressedImage, Image
 from std_msgs.msg import Header
 from duckietown_msgs.msg import Twist2DStamped, LEDPattern
 
-from mlp_model.srv import MLPPredict, MLPPredictResponse
+from mlp_model.srv import MLPPredict
 
 # Color masks
 STOP_MASK = [(0, 75, 150), (5, 150, 255)]
@@ -191,6 +195,9 @@ class LaneFollowNode(DTROS):
     self.pattern = LEDPattern()
     self.pattern.header = Header()
     self.signalled = False
+
+    # Transform broadcaster
+    self.broadcaster = StaticTransformBroadcaster()
 
     self.loginfo("Initialized")
 
@@ -438,7 +445,8 @@ class LaneFollowNode(DTROS):
     outline_img_msg = CompressedImage(format="jpeg", data=self.jpeg.encode(img))
     self.pub.publish(outline_img_msg)
 
-    # TODO: publish transforms
+    # Publish transform
+    self.publish_transform(prediction.number, closest_tag_id)
 
     # Properly terminate the program if we've found all numbers
     if len(node.number_apriltag_map) == 10:
@@ -449,6 +457,26 @@ class LaneFollowNode(DTROS):
 
       # Shutdown current node
       rospy.signal_shutdown("Found all ten numbers!")
+  
+  def publish_transform(self, number, tag_id):
+    # Initialize transform under its april tag's frame
+    static_transform = TransformStamped()
+    static_transform.header.stamp = rospy.Time.now()
+    static_transform.header.frame_id = f'at_{tag_id}_static'
+    static_transform.child_frame_id = str(number)
+
+    # Offset and angle are 0
+    static_transform.transform.translation.x = 0.0
+    static_transform.transform.translation.y = 0.0
+    static_transform.transform.translation.z = 0.0
+    quat = tr.quaternion_from_euler(0.0, 0.0, 0.0)
+    static_transform.transform.rotation.x = quat[0]
+    static_transform.transform.rotation.y = quat[1]
+    static_transform.transform.rotation.z = quat[2]
+    static_transform.transform.rotation.w = quat[3]
+
+    # Publish transform
+    self.broadcaster.sendTransform(static_transform)
 
   def drive(self):
     # Don't move if we're prediction

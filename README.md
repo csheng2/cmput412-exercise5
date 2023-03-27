@@ -23,8 +23,15 @@ To run the program, ensure that the variable `$BOT` stores your robot's host nam
 ```
 dts devel build -f # builds locally
 dts devel build -f -H $BOT.local # builds on the robot
-dts devel run -R $BOT && dts devel run -H $BOT.local # runs locally and on robot
+dts devel run -R $BOT
 ```
+
+In another terminal, run:
+```
+dts devel run -H $BOT.local # runs locally and on robot
+```
+
+Note: this way of running assumes that your hostname for your local docker does not start with csc229. If it does, you will have to edit the default.sh file to ensure that the lane following node is launched on the robot, and the MLP node is launched locally.
 
 To shutdown the program, enter `CTRL + C` in your terminal.
 

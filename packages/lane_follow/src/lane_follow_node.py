@@ -38,6 +38,7 @@ class LaneFollowNode(DTROS):
     super(LaneFollowNode, self).__init__(node_name=node_name, node_type=NodeType.GENERIC)
     self.node_name = node_name
     self.veh = rospy.get_param("~veh")
+    self.initialized = False
 
     # Shutdown hook
     rospy.on_shutdown(self.hook)
@@ -76,8 +77,13 @@ class LaneFollowNode(DTROS):
       Image,
       queue_size=1
     )
+    self.led_publisher = rospy.Publisher(
+      f"/{self.veh}/led_emitter_node/led_pattern",
+      LEDPattern,
+      queue_size=1
+    )
 
-    # Lane-following PID Variables
+    # Lane-following PID Constants
     self.proportional = None
     if ENGLISH:
       self.offset = -220
@@ -89,7 +95,7 @@ class LaneFollowNode(DTROS):
     self.P = 0.020
     self.D = -0.007
 
-    # override values if Celina's robot
+    # Other robot constants (based on experimentation)
     if self.veh == "csc22905":
       self.P = 0.049
       self.D = -0.004
@@ -103,7 +109,7 @@ class LaneFollowNode(DTROS):
     self.last_error = 0
     self.last_time = rospy.get_time()
 
-    # Left turn variables
+    # Action variables
     self.left_turn_duration = 1.5
     self.right_turn_duration = 1
     self.straight_duration = 1
@@ -185,33 +191,22 @@ class LaneFollowNode(DTROS):
     self.apriltag_hz = 2
     self.last_message = None
     self.timer = rospy.Timer(rospy.Duration(1 / self.apriltag_hz), self.cb_apriltag_timer)
-    
-    # Lane detection timer
-    # self.lane_detection_hz = 8
-    # self.timer = rospy.Timer(rospy.Duration(1 / self.lane_detection_hz), self.cb_lane_detection_timer)
-    # self.last_message = None
 
     # Initialize LED color-changing
     self.pattern = LEDPattern()
     self.pattern.header = Header()
-    self.led_publisher = rospy.Publisher(f"/{self.veh}/led_emitter_node/led_pattern", LEDPattern, queue_size = 1)
     self.initalize_white_leds()
 
     # Transform broadcaster
     self.broadcaster = StaticTransformBroadcaster()
 
+    self.initialized = True
     self.loginfo("Initialized")
 
   def callback(self, msg):
-  #   if not msg:
-  #     return
-    
     self.last_message = msg
-
-  # def cb_lane_detection_timer(self, _):
-    # msg = self.last_message
-    # Don't detect we don't have a message or if we're predicting a number
-    if not msg or self.predicting:
+    # Don't detect we don't have a message or if we're predicting a number or node is not done initializing
+    if not msg or self.predicting or not self.initialized:
       return
 
     img = self.jpeg.decode(msg.data)
@@ -302,8 +297,8 @@ class LaneFollowNode(DTROS):
     Callback for timer
     '''
     msg = self.last_message
-    # Don't detect we don't have a message or if we're predicting a number
-    if not msg or self.predicting:
+    # Don't detect we don't have a message or if we're predicting a number or node is not done initializing
+    if not msg or self.predicting or not self.initialized:
       return
 
     self.last_detected_apriltag = None
@@ -354,10 +349,11 @@ class LaneFollowNode(DTROS):
     self.twist.omega = 0
     self.vel_pub.publish(self.twist)
 
+    # Convert image to HSV
     frame = cv2.GaussianBlur(img, (5, 5), 0)
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-    # Mask for numbers
+    # Mask for blue regions
     mask = cv2.inRange(hsv, BLUE_RANGE[0], BLUE_RANGE[1])
     blue_contours, _ = cv2.findContours(
       mask,
@@ -365,6 +361,7 @@ class LaneFollowNode(DTROS):
       cv2.CHAIN_APPROX_NONE
     )
 
+    # Get the highest blue area in the same apriltag horizontal bounding area
     max_area = 2000
     max_blue_idx = -1
 
@@ -389,6 +386,7 @@ class LaneFollowNode(DTROS):
       self.detection_pub.publish(self.br.cv2_to_imgmsg(img, "bgr8"))
       return
     
+    # Get number (black writing) within the blue region
     [X, Y, W, H] = cv2.boundingRect(blue_contours[max_blue_idx])
     cropped_image = frame[Y:Y+H, X:X+W]
     second_mask = cv2.inRange(cropped_image, BLACK_RANGE[0], BLACK_RANGE[1])
@@ -399,6 +397,7 @@ class LaneFollowNode(DTROS):
       cv2.CHAIN_APPROX_NONE
     )
 
+    # Find largest black writing area (removes noise)
     max_area = 0
     max_idx = 0
     for i in range(len(contours)):
@@ -407,10 +406,12 @@ class LaneFollowNode(DTROS):
         max_idx = i
         max_area = area
 
+    # Get a mask of the black writing (results in black and white image)
     mask = np.zeros(second_mask.shape, np.uint8)
     cv2.drawContours(mask, contours, max_idx, (255, 255, 255), thickness=cv2.FILLED)
     final_mask = cv2.bitwise_and(mask, mask, mask=second_mask)
 
+    # Send number for prediction
     msg = self.br.cv2_to_imgmsg(final_mask, "mono8")
     prediction = self.mlp_predict(msg)
     self.predicting = False
@@ -446,6 +447,7 @@ class LaneFollowNode(DTROS):
       try:
         self.mlp_predict(msg)
       except:
+        # Node shutdown before sending a response
         pass
 
       # Shutdown current node
@@ -476,8 +478,8 @@ class LaneFollowNode(DTROS):
     self.broadcaster.sendTransform(static_transform)
 
   def drive(self):
-    # Don't move if we're prediction
-    if self.predicting:
+    # Don't move if we're predicting or node is not done initializing
+    if self.predicting or not self.initialized:
       return
     
     # If we're stopped at an intersection
@@ -570,21 +572,20 @@ class LaneFollowNode(DTROS):
     Link: https://github.com/duckietown/dt-core/blob/daffy/packages/led_emitter/src/led_emitter_node.py
     Author: GitHub user liampaull
     '''
-
     self.pattern.header.stamp = rospy.Time.now()
     rgba = ColorRGBA()
 
+    # All white
     rgba.r = 1.0
     rgba.g = 1.0
     rgba.b = 1.0
     rgba.a = 1.0
 
-    # default: turn off
     self.pattern.rgb_vals = [rgba] * 5
-      
     self.led_publisher.publish(self.pattern)
 
   def hook(self):
+    # Stop moving vehicle
     print("SHUTTING DOWN")
     self.twist.v = 0
     self.twist.omega = 0

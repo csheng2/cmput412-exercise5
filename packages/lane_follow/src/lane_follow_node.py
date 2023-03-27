@@ -308,12 +308,13 @@ class LaneFollowNode(DTROS):
 
     self.last_detected_apriltag = None
     # turn image message into grayscale image
-    img = self.jpeg.decode(msg.data, pixel_format=TJPF_GRAY)
+    img = self.jpeg.decode(msg.data)
     # run input image through the rectification map
     img = cv2.remap(img, self._mapx, self._mapy, cv2.INTER_NEAREST)
+    bw_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     # detect tags
-    tags = self.at_detector.detect(img, True, self._camera_parameters, self.tag_size)
+    tags = self.at_detector.detect(bw_image, True, self._camera_parameters, self.tag_size)
 
     if len(tags) == 0:
       # Publish image before returning
@@ -352,11 +353,6 @@ class LaneFollowNode(DTROS):
     self.twist.v = 0
     self.twist.omega = 0
     self.vel_pub.publish(self.twist)
-
-    # color version of image message
-    img = self.jpeg.decode(msg.data)
-    # run input image through the rectification map
-    img = cv2.remap(img, self._mapx, self._mapy, cv2.INTER_NEAREST)
 
     frame = cv2.GaussianBlur(img, (5, 5), 0)
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)

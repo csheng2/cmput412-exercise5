@@ -14,7 +14,7 @@ from tf2_ros import StaticTransformBroadcaster
 
 from geometry_msgs.msg import TransformStamped
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image
-from std_msgs.msg import Header
+from std_msgs.msg import Header, ColorRGBA
 from duckietown_msgs.msg import Twist2DStamped, LEDPattern
 
 from lane_follow.srv import MLPPredict
@@ -194,7 +194,8 @@ class LaneFollowNode(DTROS):
     # Initialize LED color-changing
     self.pattern = LEDPattern()
     self.pattern.header = Header()
-    self.signalled = False
+    self.led_publisher = rospy.Publisher(f"/{self.veh}/led_emitter_node/led_pattern", LEDPattern, queue_size = 1)
+    self.initalize_white_leds()
 
     # Transform broadcaster
     self.broadcaster = StaticTransformBroadcaster()
@@ -569,6 +570,27 @@ class LaneFollowNode(DTROS):
         if DEBUG:
           self.loginfo(f'{self.proportional}, {P}, {D}, {self.twist.omega}, {self.twist.v}')
       self.vel_pub.publish(self.twist)
+
+  def initalize_white_leds(self):
+    '''
+    Code for this function was inspired by 
+    "duckietown/dt-core", file "led_emitter_node.py"
+    Link: https://github.com/duckietown/dt-core/blob/daffy/packages/led_emitter/src/led_emitter_node.py
+    Author: GitHub user liampaull
+    '''
+
+    self.pattern.header.stamp = rospy.Time.now()
+    rgba = ColorRGBA()
+
+    rgba.r = 1.0
+    rgba.g = 1.0
+    rgba.b = 1.0
+    rgba.a = 1.0
+
+    # default: turn off
+    self.pattern.rgb_vals = [rgba] * 5
+      
+    self.led_publisher.publish(self.pattern)
 
   def hook(self):
     print("SHUTTING DOWN")

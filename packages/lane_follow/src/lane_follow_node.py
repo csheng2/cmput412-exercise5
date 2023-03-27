@@ -83,7 +83,7 @@ class LaneFollowNode(DTROS):
       self.offset = -220
     else:
       self.offset = 220
-    self.velocity = 0.25
+    self.velocity = 0.2
     self.twist = Twist2DStamped(v = self.velocity, omega=0)
 
     self.P = 0.020
@@ -441,9 +441,9 @@ class LaneFollowNode(DTROS):
     self.number_apriltag_map[str(prediction.number)] = closest_tag_id
     
     # Publish outline of detection to image publisher
-    # cv2.drawContours(img, blue_contours, max_blue_idx, (0, 255, 0), 3)
-    # outline_img_msg = CompressedImage(format="jpeg", data=self.jpeg.encode(img))
-    # self.pub.publish(outline_img_msg)
+    cv2.drawContours(img, blue_contours, max_blue_idx, (0, 255, 0), 3)
+    outline_img_msg = CompressedImage(format="jpeg", data=self.jpeg.encode(img))
+    self.detection_pub.publish(outline_img_msg)
 
     # Publish transform
     self.publish_transform(prediction.number, closest_tag_id)

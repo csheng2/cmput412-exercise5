@@ -2,9 +2,7 @@
 
 This repository contains implementation solutions for exercise 5. For information about the project, please read the report at:
 
-<!-- TODO: add sharyat's site -->
-
-[Nadeen Mohamed's site](https://sites.google.com/ualberta.ca/nadeen-cmput-412/written-reports/exercise-5) or [Celina Sheng's site](https://sites.google.com/ualberta.ca/csheng2-cmput-412/exercise-5) or [Sharyat Singh Bhanwala's Site]()
+[Nadeen Mohamed's site](https://sites.google.com/ualberta.ca/nadeen-cmput-412/written-reports/exercise-5) or [Celina Sheng's site](https://sites.google.com/ualberta.ca/csheng2-cmput-412/exercise-5) or [Sharyat Singh Bhanwala's Site](https://sites.google.com/ualberta.ca/projects/exercise-5)
 
 ## Structure
 
@@ -12,13 +10,11 @@ There are two packages in this file: mlp_model and lane_follow. We will discuss 
 
 ### MLP Model
 
-<!-- TODO: add info about MLP model -->
+- `lane_follow_node.py`: Implements a node to that loads out trained MLP. It also defines a service, `mlp_predict_server`, that takes in images and returns the number predicted by the MLP. When it receives a signal with no data, it shuts down the service and terminates the program.
 
 ### Lane Follow
 
-<!-- TODO: add more info about lane following -->
-
-- `lane_follow_node.py`: Implements a node to autonomously drive in a Duckietown lane. It contains a rosservice, which tells the node whether we want to lane follow or not.
+- `lane_follow_node.py`: Implements a node to autonomously drive in a Duckietown lane. It connects to the `mlp_predict_server` service, sending it images of numbers that we detect. It continues to lane-follow around the Duckietown, implementing a random walk, until we detect all 10 numbers. At that point, it sends signal to the MLP node via the service to shutdown, and shuts down itself.
 
 ## Execution:
 

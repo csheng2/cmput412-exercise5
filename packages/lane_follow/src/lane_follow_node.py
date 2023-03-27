@@ -317,7 +317,7 @@ class LaneFollowNode(DTROS):
 
     if len(tags) == 0:
       # Publish image before returning
-      # self.detection_pub.publish(self.br.cv2_to_imgmsg(img, "bgr8"))
+      self.detection_pub.publish(self.br.cv2_to_imgmsg(img, "bgr8"))
       return
 
     # Only save the april tag if it's within a close distance
@@ -332,7 +332,7 @@ class LaneFollowNode(DTROS):
     # Return if we can't find a close enough april tag
     if min_tag_idx == -1:
       # Publish image before returning
-      # self.detection_pub.publish(self.br.cv2_to_imgmsg(img, "bgr8"))
+      self.detection_pub.publish(self.br.cv2_to_imgmsg(img, "bgr8"))
       return
 
     closest_tag_id = str(tags[min_tag_idx].tag_id)
@@ -344,7 +344,7 @@ class LaneFollowNode(DTROS):
     # Skip detection if we've already detected that number
     if closest_tag_id in self.number_apriltag_map.values():
       # Publish image before returning
-      # self.detection_pub.publish(self.br.cv2_to_imgmsg(img, "bgr8"))
+      self.detection_pub.publish(self.br.cv2_to_imgmsg(img, "bgr8"))
       return
 
     # Stop moving
@@ -390,7 +390,7 @@ class LaneFollowNode(DTROS):
     if max_blue_idx == -1:
       self.predicting = False
       # Publish image before returning
-      # self.detection_pub.publish(self.br.cv2_to_imgmsg(img, "bgr8"))
+      self.detection_pub.publish(self.br.cv2_to_imgmsg(img, "bgr8"))
       return
     
     [X, Y, W, H] = cv2.boundingRect(blue_contours[max_blue_idx])
@@ -423,7 +423,7 @@ class LaneFollowNode(DTROS):
       # Invalid prediction
       print('Unable to predict number')
       # Publish image before returning
-      # self.detection_pub.publish(self.br.cv2_to_imgmsg(img, "bgr8"))
+      self.detection_pub.publish(self.br.cv2_to_imgmsg(img, "bgr8"))
       return 
     
     # Print tag and location

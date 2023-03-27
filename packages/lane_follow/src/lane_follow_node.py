@@ -442,7 +442,7 @@ class LaneFollowNode(DTROS):
     # Properly terminate the program if we've found all numbers
     if len(node.number_apriltag_map) == 10:
       # Send an empty image to the service to signal that we're shutting down
-      msg.data = []
+      msg.data = bytes()
       self.mlp_predict(msg)
 
       # Shutdown current node

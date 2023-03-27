@@ -85,6 +85,7 @@ class MLPModelNode(DTROS):
     # Shutdown the service if the image is empty
     if len(rawImage.image.data) == 0:
       rospy.signal_shutdown("Found all ten numbers!")
+      return MLPPredictResponse(-1)
     
     # Return if the model is not already loaded
     if not self.model_loaded:

@@ -443,7 +443,10 @@ class LaneFollowNode(DTROS):
     if len(node.number_apriltag_map) == 10:
       # Send an empty image to the service to signal that we're shutting down
       msg.data = bytes()
-      self.mlp_predict(msg)
+      try:
+        self.mlp_predict(msg)
+      except:
+        pass
 
       # Shutdown current node
       rospy.signal_shutdown("Found all ten numbers!")

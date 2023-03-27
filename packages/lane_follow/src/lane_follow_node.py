@@ -443,7 +443,7 @@ class LaneFollowNode(DTROS):
     if len(node.number_apriltag_map) == 10:
       # Send an empty image to the service to signal that we're shutting down
       img_msg = Image()
-      img_msg.data = None
+      img_msg.data = []
       self.mlp_predict(img_msg)
 
       # Shutdown current node

@@ -83,7 +83,7 @@ class MLPModelNode(DTROS):
     link: https://stackoverflow.com/questions/60841650/how-to-test-one-single-image-in-pytorch
     """
     # Shutdown the service if the image is empty
-    if not rawImage.image:
+    if len(rawImage.image.data) == 0:
       rospy.signal_shutdown("Found all ten numbers!")
     
     # Return if the model is not already loaded

@@ -72,8 +72,8 @@ class LaneFollowNode(DTROS):
       queue_size=1
     )
     self.detection_pub = rospy.Publisher(
-      f"/{self.veh}/detection/image/mask/compressed",
-      CompressedImage,
+      f"/{self.veh}/detection/image/",
+      Image,
       queue_size=1
     )
 
@@ -316,8 +316,7 @@ class LaneFollowNode(DTROS):
 
     if len(tags) == 0:
       # Publish image before returning
-      # outline_img_msg = CompressedImage(format="jpeg", data=self.jpeg.encode(img))
-      # self.pub.publish(outline_img_msg)
+      # self.detection_pub.publish(self.br.cv2_to_imgmsg(img, "bgr8"))
       return
 
     # Only save the april tag if it's within a close distance
@@ -332,8 +331,7 @@ class LaneFollowNode(DTROS):
     # Return if we can't find a close enough april tag
     if min_tag_idx == -1:
       # Publish image before returning
-      # outline_img_msg = CompressedImage(format="jpeg", data=self.jpeg.encode(img))
-      # self.pub.publish(outline_img_msg)
+      # self.detection_pub.publish(self.br.cv2_to_imgmsg(img, "bgr8"))
       return
 
     closest_tag_id = str(tags[min_tag_idx].tag_id)
@@ -345,8 +343,7 @@ class LaneFollowNode(DTROS):
     # Skip detection if we've already detected that number
     if closest_tag_id in self.number_apriltag_map.values():
       # Publish image before returning
-      # outline_img_msg = CompressedImage(format="jpeg", data=self.jpeg.encode(img))
-      # self.pub.publish(outline_img_msg)
+      # self.detection_pub.publish(self.br.cv2_to_imgmsg(img, "bgr8"))
       return
 
     # Stop moving
@@ -392,8 +389,7 @@ class LaneFollowNode(DTROS):
     if max_blue_idx == -1:
       self.predicting = False
       # Publish image before returning
-      # outline_img_msg = CompressedImage(format="jpeg", data=self.jpeg.encode(img))
-      # self.pub.publish(outline_img_msg)
+      # self.detection_pub.publish(self.br.cv2_to_imgmsg(img, "bgr8"))
       return
     
     [X, Y, W, H] = cv2.boundingRect(blue_contours[max_blue_idx])
@@ -426,8 +422,7 @@ class LaneFollowNode(DTROS):
       # Invalid prediction
       print('Unable to predict number')
       # Publish image before returning
-      # outline_img_msg = CompressedImage(format="jpeg", data=self.jpeg.encode(img))
-      # self.pub.publish(outline_img_msg)
+      # self.detection_pub.publish(self.br.cv2_to_imgmsg(img, "bgr8"))
       return 
     
     # Print tag and location
@@ -441,9 +436,8 @@ class LaneFollowNode(DTROS):
     self.number_apriltag_map[str(prediction.number)] = closest_tag_id
     
     # Publish outline of detection to image publisher
-    # cv2.drawContours(img, blue_contours, max_blue_idx, (0, 255, 0), 3)
-    # outline_img_msg = CompressedImage(format="jpeg", data=self.jpeg.encode(img))
-    # self.pub.publish(outline_img_msg)
+    cv2.drawContours(img, blue_contours, max_blue_idx, (0, 255, 0), 3)
+    self.detection_pub.publish(self.br.cv2_to_imgmsg(img, "bgr8"))
 
     # Publish transform
     self.publish_transform(prediction.number, closest_tag_id)
